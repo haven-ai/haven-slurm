@@ -1,10 +1,10 @@
-# haven-slurm
-
-Modify `slurm_manager.py` and slightly `haven_jobs.py` to run the following scripts.
-
-## Trainval without Server
-```
 {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
             "name": "demo",
             "type": "python",
             "request": "launch",
@@ -18,12 +18,8 @@ Modify `slurm_manager.py` and slightly `haven_jobs.py` to run the following scri
                 "-v", "results.ipynb"
         ],
         },
-```
 
-## Trainval with Slurm
-
-```
-{
+        {
             "name": "demo_slurm",
             "type": "python",
             "request": "launch",
@@ -37,4 +33,7 @@ Modify `slurm_manager.py` and slightly `haven_jobs.py` to run the following scri
                 "-r", "1"
         ],
         },
-```
+
+      
+    ]
+}
