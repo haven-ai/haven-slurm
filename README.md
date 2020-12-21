@@ -2,7 +2,7 @@
 
 Modify `slurm_manager.py` and slightly `haven_jobs.py` to run the following scripts.
 
-## Trainval without Server
+## Trainval without Slurm
 ```
 {
             "name": "demo",
