@@ -278,7 +278,8 @@ class JobManager:
             job_id = hu.load_json(fname).get("job_id")
             job = self.get_job( job_id)
 
-            if job.alive or job.state == 'SUCCEEDED':
+            # todo: job.alive?
+            if job.alive or job['state'] in ['SUCCEEDED', 'RUNNING', 'PENDING', 'COMPLETD', 'COMPLETING']:
                 # If the job is alive, do nothing
                 message = 'IGNORED: Job %s' % job.state
 
@@ -367,21 +368,21 @@ class JobManager:
                 fname_exp_dict = os.path.join(savedir, "exp_dict.json")
                 job = jobs_dict[job_id]
 
-                if hasattr(job, 'command'):
-                    command = job.command[2]
+                if hasattr(job_dict, 'command'):
+                    command = job_dict['command']
                 else:
                     command = None
 
                 # Job info
                 result_dict['started_at'] = hu.time_to_montreal(fname_exp_dict)
                 result_dict["job_id"] = job_id
-                result_dict["job_state"] = job.state
-                result_dict["restarts"] = len(job.runs)
+                result_dict["job_state"] = job["state"]
+                result_dict["restarts"] = len(job["runs"])
                 result_dict["command"] = command
                 
                 if get_logs:
                     # Logs info
-                    if job.state == "FAILED":
+                    if job["state"] == "FAILED":
                         logs_fname = os.path.join(savedir, "err.txt")
                     else:
                         logs_fname = os.path.join(savedir, "logs.txt")
