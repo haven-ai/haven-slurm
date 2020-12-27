@@ -278,13 +278,12 @@ class JobManager:
             job_id = hu.load_json(fname).get("job_id")
             job = self.get_job( job_id)
 
-            # todo: job.alive?
-            if job.alive or job['state'] in ['SUCCEEDED', 'RUNNING', 'PENDING', 'COMPLETD', 'COMPLETING']:
+            if job['state'] in ['SUCCEEDED', 'RUNNING', 'PENDING', 'COMPLETD', 'COMPLETING']:
                 # If the job is alive, do nothing
-                message = 'IGNORED: Job %s' % job.state
+                message = 'IGNORED: Job %s' % job['state']
 
-            elif job.state in ["FAILED", "CANCELLED", "INTERRUPTED"]:
-                message = "SUBMITTED: Retrying %s Job" % job.state
+            elif job['state'] in ["FAILED", "CANCELLED", "INTERRUPTED", "TIMEOUT"]:
+                message = "SUBMITTED: Retrying %s Job" % job['state']
                 job_dict = self.launch_exp_dict(exp_dict, savedir, command, job=job)
                 job_id = job_dict['job_id']
             # This shouldn't happen

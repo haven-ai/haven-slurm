@@ -9,7 +9,7 @@ import numpy as np
 import getpass
 import pprint
 import requests
-
+import pandas as pd
 
 # Job submission
 # ==============
@@ -17,12 +17,14 @@ def submit_job(api, account_id, command, job_config, workdir, savedir_logs=None)
     # read slurm setting
     lines = "#! /bin/bash \n"
     lines += "#SBATCH --account=%s \n" % account_id
-    for key in list(job_config.JOB_CONFIG.keys()):
-        lines += "#SBATCH --%s=%s \n" % (key, job_config.JOB_CONFIG[key])
+    for key in list(job_config.keys()):
+        lines += "#SBATCH --%s=%s \n" % (key, job_config[key])
     path_log = os.path.join(savedir_logs, "logs.txt")
-    path_err = os.path.join(savedir_logs, "err.txt")
     lines += "#SBATCH --output=%s \n" % path_log
+    path_err = os.path.join(savedir_logs, "err.txt")
     lines += "#SBATCH --error=%s \n" % path_err
+    path_code = os.path.join(savedir_logs, "code")
+    lines += "#SBATCH --chdir=%s \n" % path_code
 
     lines += command
 
@@ -46,6 +48,17 @@ def submit_job(api, account_id, command, job_config, workdir, savedir_logs=None)
 
     return job_id
 
+def process_sacct_message(job_list):
+    lines = job_list.split('\n')
+    header = lines[0].split()
+    lines = [l.split() for l in lines[2:-1]]
+
+    df = pd.DataFrame(data=lines, columns=header)
+    df = df[~df["JobID"].str.contains(r"\.")]
+    df = df.rename(mapper={"State": "state", "CPUTime": "cpuTime", "JobID": "job_id"}, axis=1)
+    df = df.replace({"state": r"CANCELLED.*"}, {"state": "CANCELLED"}, regex=True)
+    df.insert(loc=0, column="runs", value="")
+    return df
 
 # Job status
 # ===========
@@ -59,29 +72,7 @@ def get_job(api, job_id):
 
 def get_jobs(api, account_id):
     ''' get all jobs launched by the current user'''
-    # todo: cannot get command! fix it!
-    command = "squeue --user=%s" % getpass.getuser()
-    while True:
-        try:
-            job_list = hu.subprocess_call(command)
-            job_list = job_list.split('\n')
-            job_list = [v.lstrip().split(" ")[0] for v in job_list[1:]]
-            result = []
-            for job_id in job_list:
-                result.append(get_job(None, job_id))
-        except Exception as e:
-            if "Socket timed out" in str(e):
-                print("squeue time out and retry now")
-                time.sleep(1)
-                continue
-        break
-    return result
-
-
-def get_jobs_dict(api, job_id_list, query_size=20):
-    jobs_dict = {}
-
-    command = "sacct --jobs=%s" % str(job_id_list)[1:-1].replace(" ", "")
+    command = "sacct --user=%s --format=jobid,cputime,state" % getpass.getuser()
     while True:
         try:
             job_list = hu.subprocess_call(command)
@@ -92,19 +83,33 @@ def get_jobs_dict(api, job_id_list, query_size=20):
                 continue
         break
 
-    lines = job_list.split('\n')
-    header = lines[0]
-    state_index = header.index("State")
-    job_id_index = header.index("JobID")
-    cpu_time_index = header.index("CPUTime")
-    for line in lines[2:]:
-        elements = line.split()
-        job_id = elements[job_id_index]
-        if '.' in job_id:
-            continue
-        state = elements[state_index]
-        cpuTime = elements[cpu_time_index]
-        jobs_dict[job_id] = {"state": state, "cpuTime": cpuTime, "runs": -1}
+    job_list = process_sacct_message(job_list)
+    return job_list
+
+
+def get_jobs_dict(api, job_id_list, query_size=20):
+    if len(job_id_list) == 0:
+        return {}
+
+    jobs_dict = {}
+
+    command = "sacct --jobs=%s --format=jobid,cputime,state" % str(job_id_list)[1:-1].replace(" ", "")
+    while True:
+        try:
+            job_list = hu.subprocess_call(command)
+        except Exception as e:
+            if "Socket timed out" in str(e):
+                print("sacct time out and retry now")
+                time.sleep(1)
+                continue
+        break
+
+    df = process_sacct_message(job_list)
+
+    # use job id as key
+    new_df = df.drop(labels="job_id", axis=1)
+    new_df.index = df["job_id"].to_list()
+    jobs_dict = new_df.to_dict(orient="index")
 
     return jobs_dict
 
@@ -116,7 +121,7 @@ def kill_job(api, job_id):
     """Kill a job job until it is dead."""
     job = get_job(api, job_id)
 
-    if job["status"] in ["CANCELLED", "COMPLETED"]:
+    if job["state"] in ["CANCELLED", "COMPLETED", "FAILED", "TIMEOUT"]:
         print('%s is already dead' % job_id)
     else:
         kill_command = "scancel %s" % job_id
