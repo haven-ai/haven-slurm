@@ -278,7 +278,7 @@ class JobManager:
             job_id = hu.load_json(fname).get("job_id")
             job = self.get_job( job_id)
 
-            if job['state'] in ['SUCCEEDED', 'RUNNING', 'PENDING', 'COMPLETD', 'COMPLETING']:
+            if job['state'] in ['SUCCEEDED', 'RUNNING', 'PENDING', 'COMPLETED', 'COMPLETING']:
                 # If the job is alive, do nothing
                 message = 'IGNORED: Job %s' % job['state']
 
