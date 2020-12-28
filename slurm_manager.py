@@ -47,18 +47,7 @@ def submit_job(api, account_id, command, job_config, workdir, savedir_logs=None)
     os.remove(file_name)
 
     return job_id
-
-def process_sacct_message(job_list):
-    lines = job_list.split('\n')
-    header = lines[0].split()
-    lines = [l.split() for l in lines[2:-1]]
-
-    df = pd.DataFrame(data=lines, columns=header)
-    df = df[~df["JobID"].str.contains(r"\.")]
-    df = df.rename(mapper={"State": "state", "CPUTime": "cpuTime", "JobID": "job_id"}, axis=1)
-    df = df.replace({"state": r"CANCELLED.*"}, {"state": "CANCELLED"}, regex=True)
-    df.insert(loc=0, column="runs", value="")
-    return df
+    
 
 # Job status
 # ===========
@@ -72,19 +61,20 @@ def get_job(api, job_id):
 
 def get_jobs(api, account_id):
     ''' get all jobs launched by the current user'''
-    command = "sacct --user=%s --format=jobid,cputime,state" % getpass.getuser()
+    job_list = ""
+    command = "squeue --user=%s --format=\"%%.18i %%.8T\"" % getpass.getuser()
     while True:
         try:
             job_list = hu.subprocess_call(command)
         except Exception as e:
             if "Socket timed out" in str(e):
-                print("sacct time out and retry now")
+                print("squeue time out and retry now")
                 time.sleep(1)
                 continue
         break
 
-    job_list = process_sacct_message(job_list)
-    return job_list
+    result = [{"job_id": j.split()[0], "state": j.split()[1]} for j in job_list.split('\n')[1:-1]]
+    return result
 
 
 def get_jobs_dict(api, job_id_list, query_size=20):
@@ -104,7 +94,15 @@ def get_jobs_dict(api, job_id_list, query_size=20):
                 continue
         break
 
-    df = process_sacct_message(job_list)
+    lines = job_list.split('\n')
+    header = lines[0].split()
+    lines = [l.split() for l in lines[2:-1]]
+
+    df = pd.DataFrame(data=lines, columns=header)
+    df = df[~df["JobID"].str.contains(r"\.")]
+    df = df.rename(mapper={"State": "state", "CPUTime": "cpuTime", "JobID": "job_id"}, axis=1)
+    df = df.replace({"state": r"CANCELLED.*"}, {"state": "CANCELLED"}, regex=True)
+    df.insert(loc=0, column="runs", value="")
 
     # use job id as key
     new_df = df.drop(labels="job_id", axis=1)
